@@ -72,9 +72,12 @@ app.post('/webhook', (req, res) => {
     body.entry.forEach(entry => {
       entry.changes.forEach(change => {
         if (change.field === 'messages' && change.value?.messages?.length > 0) {
-          const message = change.value.messages[0];
-          if (message) {
-            require('./services/whatsappService').handleIncomingMessage(message);
+          console.log('Received change.value:', JSON.stringify(change.value, null, 2));
+          if (change.value && change.value.messages && change.value.messages.length > 0) {
+            const message = change.value.messages[0];
+            if (message) {
+              require('./services/whatsappService').handleIncomingMessage(message);
+            }
           }
         }
       });
