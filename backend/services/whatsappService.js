@@ -109,6 +109,22 @@ const handleIncomingMessage = async (message) => {
     const newCarSaveEndTime = process.hrtime.bigint();
     console.log(`newCar.save took ${Number(newCarSaveEndTime - newCarSaveStartTime) / 1_000_000} ms`);
 
+    // Assign a free driver to the car during check-in
+    const freeDriver = await Driver.findOne({ status: 'free' });
+
+    if (!freeDriver) {
+      await sendMessage(from, 'No free drivers available at the moment. Please try again later.');
+      // Optionally, you might want to delete the newly created car if no driver can be assigned
+      await Car.findByIdAndDelete(newCar._id);
+      return;
+    }
+
+    newCar.driver = freeDriver._id;
+    await newCar.save();
+
+    freeDriver.status = 'busy';
+    await freeDriver.save();
+
     const { token, qrUrl } = await generateQrCode(newCar, { _id: newCar.ownerPhone, name: newCar.ownerName }, 'checkin');
 
     const qrSession = new QRSession({ token, car: newCar._id, type: 'checkin', qrURL: qrUrl, expiresAt: new Date(Date.now() + 15 * 60 * 1000) });
