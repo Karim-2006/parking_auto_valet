@@ -621,6 +621,11 @@ const sendImage = async (to, imageUrl, caption) => {
   // Placeholder for actual image sending logic
 };
 
+const handleIncomingMessage = async (message) => {
+  console.log(`Handling incoming message: ${message.body}`);
+  // Placeholder for actual message handling logic
+};
+
 module.exports = {
  sendMessage,
   sendImage,
