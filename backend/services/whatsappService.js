@@ -616,6 +616,11 @@ const parseCarDetails = (text) => {
   }
   return null;}
 
+const sendImage = async (to, imageUrl, caption) => {
+  console.log(`Sending image to ${to} with URL ${imageUrl} and caption ${caption}`);
+  // Placeholder for actual image sending logic
+};
+
 module.exports = {
  sendMessage,
   sendImage,
