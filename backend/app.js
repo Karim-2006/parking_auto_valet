@@ -106,12 +106,25 @@ app.post('/reset-data', async (req, res) => {
 // Driver routes
 app.post('/drivers', async (req, res) => {
   try {
-    const { name, phone, driverId } = req.body;
+    let { name, phone, driverId } = req.body;
+    if (!driverId) {
+      // Generate a simple unique ID for the driver
+      driverId = `driver_${Date.now()}`;
+    }
     const driver = new Driver({ name, phone, driverId });
     await driver.save();
     res.status(201).json(driver);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/drivers', async (req, res) => {
+  try {
+    const drivers = await Driver.find({});
+    res.status(200).json(drivers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
