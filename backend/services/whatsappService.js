@@ -32,7 +32,7 @@ const sendMessage = async (to, message) => {
   } catch (error) {
     console.error('Error sending WhatsApp message:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
   }
-};
+
 
 const sendImage = async (to, imageUrl, caption = '') => {
   try {
@@ -51,7 +51,7 @@ const sendImage = async (to, imageUrl, caption = '') => {
   } catch (error) {
      console.error('Error sending WhatsApp image:', error.response ? error.response.data : error.message);
    }
-};
+
 
 const handleIncomingMessage = async (message) => {
   const from = message.from;
@@ -127,11 +127,10 @@ const handleIncomingMessage = async (message) => {
       await sendMessage(from, 'Invalid QR code format. Please scan a valid retrieval QR code.');
       return;
     }
-    const qrToken = parts[1].trim();
+    let qrToken = parts[1].trim();
     const scannedCarId = parts[2].trim();
     const scannedOwnerId = parts[3].trim();
     // Step 2: Driver scans QR
-    const qrToken = text.split(':')[1].trim();
     const driverPhone = from;
 
     let driver = myCache.get(`driver_${driverPhone}`);
@@ -175,7 +174,7 @@ const handleIncomingMessage = async (message) => {
     console.log(`QRSession.findOne took ${Number(qrSessionFindEndTime - qrSessionFindStartTime) / 1_000_000} ms`);
 
 
-      let car = myCache.get(`car_${qrSession.car}`);
+      car = myCache.get(`car_${qrSession.car}`);
       if (!car) {
         car = await Car.findById(qrSession.car);
         if (car) {
@@ -222,7 +221,7 @@ const handleIncomingMessage = async (message) => {
           await sendMessage(from, `Car retrieval process completed for ${car.numberPlate}.`);
           await Log.create({ action: 'Car retrieved', car: car._id, driver: driver._id });
           io.emit('dashboardUpdate', await getDashboardData());
-        } else {
+  
            await sendMessage(from, 'Car is not in a retrievable state or slot information is missing.');
         }
   } else if (text === 'retrieval' && session.state === 'IDLE') {
@@ -255,7 +254,7 @@ const handleIncomingMessage = async (message) => {
         await sendMessage(assignedDriver.phone, 'A car is being assigned to you.');
       await sendMessage(assignedDriver.phone, `New retrieval request for car ${car.numberPlate} (Owner: ${car.ownerName}, Phone: ${car.ownerPhone}). Please proceed to Slot ${car.slot.slotNumber} for retrieval.`);
 
-      } else {
+
         await sendMessage(from, 'No drivers are currently available for retrieval. Please try again later.');
       }
 
@@ -333,7 +332,7 @@ const handleIncomingMessage = async (message) => {
         await sendMessage(from, `Assigned Car [${car.numberPlate}]. Please park it at Slot [${freeSlot.slotNumber}].`);
         await Log.create({ action: 'Car checked in', car: car._id, driver: driver._id });
         io.emit('dashboardUpdate', await getDashboardData());
-      } else {
+
         await sendMessage(from, 'No free slots available.');
       }
     } else if (qrSession.type === 'retrieval') {
@@ -361,10 +360,9 @@ const handleIncomingMessage = async (message) => {
         await sendMessage(from, `Car retrieval process completed for ${car.numberPlate}.`);
         await Log.create({ action: 'Car retrieved', car: car._id, driver: driver._id });
         io.emit('dashboardUpdate', await getDashboardData());
-      } else {
+
         await sendMessage(from, 'You are not the assigned driver for this car retrieval.');
-      }
-    } else {
+      } else {
       await sendMessage(from, 'Invalid QR session type.');
     }
     } else {
@@ -577,6 +575,9 @@ const handleIncomingMessage = async (message) => {
   } else {
     await sendMessage(from, 'I did not understand your request. Please type "hi" to start over or "status" to update your driver status.');
   }
+}
+};
+
 };
 
 const getDashboardData = async () => {
