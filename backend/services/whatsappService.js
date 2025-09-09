@@ -634,7 +634,7 @@ const sendImage = async (to, imageUrl, caption) => {
 };
 
 const handleIncomingMessage = async (message) => {
-  console.log(`Handling incoming message: ${message.body}`);
+  console.log(`Handling incoming message: ${message.text && message.text.body ? message.text.body : 'Non-text message'}`);
   // Placeholder for actual message handling logic
 };
 
