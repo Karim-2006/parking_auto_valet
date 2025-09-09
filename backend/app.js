@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const socketio = require('socket.io');
 const http = require('http');
 const dotenv = require('dotenv');
+const express = require('express');
+const path = require('path');
 // Import models
 const Car = require('./models/Car');
 const Driver = require('./models/Driver');
@@ -36,7 +38,11 @@ require('./db');
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Automatic WhatsApp Valet Parking System');
+  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
+});
+
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
 
 // WhatsApp Webhook Verification

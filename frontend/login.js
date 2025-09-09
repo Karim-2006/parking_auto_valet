@@ -13,7 +13,7 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
         // Secure session management (simplified for demonstration)
         // In a real application, you would use server-side sessions, JWTs, etc.
         sessionStorage.setItem('loggedIn', 'true');
-        window.location.href = 'index.html'; // Redirect to dashboard
+        window.location.href = '/index.html'; // Redirect to dashboard
     } else {
         errorMessage.textContent = 'Invalid username or password.';
     }
