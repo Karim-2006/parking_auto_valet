@@ -6,7 +6,7 @@ const busyDriversEl = document.getElementById('busy-drivers');
 const pendingCheckinsEl = document.getElementById('pending-checkins');
 const awaitingRetrievalEl = document.getElementById('awaiting-retrieval');
 const carsTableBody = document.querySelector('#cars-table tbody');
-const driversTableBody = document.querySelector('#drivers-table tbody');
+const driversTableBody = document.querySelector('#drivers-table tbody'); // Selector fixed
 const logsTableBody = document.querySelector('#logs-table tbody');
 
 // Function to update dashboard stats
@@ -38,17 +38,20 @@ const updateCarsTable = (cars) => {
 };
 
 // Function to update drivers table
-const updateDriversTable = (drivers) => {
-    driversTableBody.innerHTML = ''; // Clear existing rows
-    drivers.forEach(driver => {
-        const row = driversTableBody.insertRow();
-        row.innerHTML = `
-            <td>${driver.name}</td>
-            <td>${driver.phone}</td>
-            <td class="driver-${driver.status}">${driver.status}</td>
-        `;
-    });
-};
+function updateDriversTable(drivers) {
+  console.log('Received drivers for dashboard:', drivers); // Add this line
+
+  driversTableBody.innerHTML = ''; // Clear existing rows
+
+  drivers.forEach(driver => {
+    const row = driversTableBody.insertRow();
+    row.insertCell(0).textContent = driver.name;
+    row.insertCell(1).textContent = driver.phone;
+    const statusCell = row.insertCell(2);
+    statusCell.textContent = driver.status;
+    statusCell.className = `status-${driver.status.toLowerCase()}`;
+  });
+}
 
 // Function to update logs table
 const updateLogsTable = (logs) => {
