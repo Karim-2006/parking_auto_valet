@@ -29,8 +29,9 @@ const sendMessage = async (to, message) => {
       }
     });
     console.log(`Message sent to ${to}`);
-  } catch (error) {
-    console.error('Error sending WhatsApp message:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+   } catch (error) {
+     console.error('Error sending WhatsApp message:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+     console.error('WhatsApp API Error Details:', error.response ? error.response.data : 'No response data');
   }
 
 
