@@ -249,26 +249,22 @@ const handleIncomingMessage = async (message) => {
     const car = await Car.findOne({ ownerPhone: registeredPhoneNumber, status: { $in: ['checked_in', 'parked'] } });
 
     if (car) {
-      let assignedDriver = await Driver.findOne({ name: 'Barath', status: 'free' });
+      const freeDriver = await Driver.findOne({ status: 'free' });
 
-      if (!assignedDriver) {
-        assignedDriver = await Driver.findOne({ status: 'free' });
-      }
-
-      if (assignedDriver) {
+      if (freeDriver) {
         assignedDriver.status = 'busy';
         await assignedDriver.save();
 
         car.status = 'retrieval_requested';
-        car.assignedDriver = assignedDriver._id;
+        car.assignedDriver = freeDriver._id;
         await car.save();
 
-        await Log.create({ action: 'Car retrieval requested', car: car._id, driver: assignedDriver._id });
+        await Log.create({ action: 'Car retrieval requested', car: car._id, driver: freeDriver._id });
         io.emit('dashboardUpdate', await getDashboardData());
 
-        await sendMessage(from, `Your retrieval request for car ${car.numberPlate} has been sent. Driver ${assignedDriver.name} (${assignedDriver.phone}) has been assigned and will contact you shortly.`);
-        await sendMessage(assignedDriver.phone, 'A car is being assigned to you.');
-      await sendMessage(assignedDriver.phone, `New retrieval request for car ${car.numberPlate} (Owner: ${car.ownerName}, Phone: ${car.ownerPhone}). Please proceed to Slot ${car.slot.slotNumber} for retrieval.`);
+        await sendMessage(from, `Your retrieval request for car ${car.numberPlate} has been sent. Driver ${freeDriver.name} (${freeDriver.phone}) has been assigned and will contact you shortly.`);
+        await sendMessage(freeDriver.phone, 'A car is being assigned to you.');
+      await sendMessage(freeDriver.phone, `New retrieval request for car ${car.numberPlate} (Owner: ${car.ownerName}, Phone: ${car.ownerPhone}). Please proceed to Slot ${car.slot.slotNumber} for retrieval.`);
 
 
         await sendMessage(from, 'No drivers are currently available for retrieval. Please try again later.');
