@@ -4,6 +4,8 @@ const http = require('http');
 const dotenv = require('dotenv');
 const express = require('express');
 const path = require('path');
+const cors = require('cors'); // Import cors
+
 // Import models
 const Car = require('./models/Car');
 const Driver = require('./models/Driver');
@@ -31,6 +33,7 @@ const io = socketio(server, {
 
 
 // Middleware
+app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
