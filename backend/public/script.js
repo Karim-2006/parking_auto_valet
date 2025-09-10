@@ -8,10 +8,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('dashboardUpdate', (data) => {
         console.log('Dashboard update received:', data);
-        updateSlots(data.slots);
-        updateDrivers(data.drivers);
-        updateParkedCars(data.parkedCars);
-        updateLogs(data.logs);
+        if (data.slots) {
+            updateSlots(data.slots);
+        }
+        if (data.drivers) {
+            updateDrivers(data.drivers);
+        }
+        if (data.parkedCars) {
+            updateParkedCars(data.parkedCars);
+        }
+        if (data.logs) {
+            updateLogs(data.logs);
+        }
     });
 
     function updateSlots(slots) {
