@@ -58,6 +58,7 @@ const sendImage = async (to, imageUrl, caption = '') => {
 
 const handleIncomingMessage = async (message, getDashboardData) => {
   const from = message.from;
+  console.log(`Incoming message from: ${from}`);
   const text = message.text && message.text.body ? message.text.body.toLowerCase() : '';
 
   const sessionStartTime = process.hrtime.bigint();

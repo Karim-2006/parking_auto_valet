@@ -169,13 +169,14 @@ async function getDashboardData() {
   const pendingCheckins = await Car.countDocuments({ status: 'pending' });
   const awaitingRetrieval = await Car.countDocuments({ status: 'awaiting_retrieval' });
 
-  const cars = await Car.find({ status: { $in: ['pending', 'parked', 'awaiting_retrieval', 'checked_in', 'retrieved'] } })
+  const parkedCars = await Car.find({ status: { $in: ['pending', 'parked', 'awaiting_retrieval', 'checked_in', 'retrieved'] } })
     .populate('slot')
     .populate('driver');
   const drivers = await Driver.find({});
   const logs = await Log.find({}).sort({ timestamp: -1 }).limit(20)
     .populate('car')
     .populate('driver');
+  const slots = await Slot.find({});
 
   return {
     stats: {
@@ -185,7 +186,8 @@ async function getDashboardData() {
       pendingCheckins,
       awaitingRetrieval,
     },
-    cars,
+    slots,
+    parkedCars,
     drivers,
     logs,
   };
