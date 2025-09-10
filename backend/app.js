@@ -4,7 +4,8 @@ const http = require('http');
 const dotenv = require('dotenv');
 const express = require('express');
 const path = require('path');
-const cors = require('cors'); // Import cors
+const cors = require('cors');
+const helmet = require('helmet'); // Import helmet
 
 // Import models
 const Car = require('./models/Car');
@@ -33,11 +34,22 @@ const io = socketio(server, {
 
 
 // Middleware
+app.use(helmet()); // Use helmet to set security headers
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Caching for static assets
+const staticOptions = {
+  maxAge: '1y',
+  setHeaders: (res, path, stat) => {
+    res.set('x-content-type-options', 'nosniff');
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+};
+
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('frontend'));
+app.use(express.static(path.join(__dirname, '../frontend'), staticOptions)); // Use corrected path with caching
 
 // Database connection
 require('./db');

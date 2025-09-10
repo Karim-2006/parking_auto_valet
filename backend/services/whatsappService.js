@@ -57,7 +57,10 @@ const sendImage = async (to, imageUrl, caption = '') => {
 
 
 const handleIncomingMessage = async (message, getDashboardData) => {
-  const from = message.from;
+  let from = message.from;
+  if (!from.startsWith('+')) {
+    from = `+${from}`;
+  }
   console.log(`Incoming message from: ${from}`);
   const text = message.text && message.text.body ? message.text.body.toLowerCase() : '';
   console.log(`Incoming message text: ${text}`);
@@ -108,7 +111,7 @@ const handleIncomingMessage = async (message, getDashboardData) => {
       numberPlate: session.carDetails.licensePlate,
       model: session.carDetails.carModel,
       ownerName: session.carDetails.ownerName,
-      ownerPhone: session.carDetails.contactNumber,
+      ownerPhone: from, // Use the normalized 'from' number
       status: 'pending' 
     });
     const newCarSaveStartTime = process.hrtime.bigint();
@@ -149,10 +152,15 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     await qrSession.save();
 
     await Log.create({ action: 'Owner initiated check-in', car: newCar._id });
-        io.emit('dashboardUpdate', await getDashboardData());
+    io.emit('dashboardUpdate', await getDashboardData());
 
     await sendImage(from, qrUrl, 'Scan this QR code at the parking gate for check-in.');
     await sendMessage(from, `Your check-in QR code is ready. Please scan it at the parking gate. QR Link: ${qrUrl}`);
+    
+    // Notify the assigned driver
+    if (freeDriver.phone) {
+        await sendMessage(freeDriver.phone, `You have been assigned to park car with license plate ${newCar.numberPlate} in slot ${freeSlot.slotNumber}.`);
+    }
     await sendMessage(from, `Assigned to driver ${freeDriver.name} and slot ${freeSlot.slotNumber}.`);
 
 
@@ -163,18 +171,38 @@ const handleIncomingMessage = async (message, getDashboardData) => {
       return;
     }
 
+    // Assign a free driver for retrieval
+    const freeDriver = await Driver.findOne({ status: 'free' });
+    if (!freeDriver) {
+        await sendMessage(from, 'No free drivers available for retrieval at the moment. Please try again later.');
+        return;
+    }
+
+    car.driver = freeDriver._id;
+    car.status = 'awaiting_retrieval';
+    await car.save();
+
+    freeDriver.status = 'busy';
+    await freeDriver.save();
+
     const { token, qrUrl } = await generateQrCode(car, { _id: car.ownerPhone, name: car.ownerName }, 'retrieval');
     const qrSession = new QRSession({ token, car: car._id, type: 'retrieval', qrURL: qrUrl, expiresAt: new Date(Date.now() + 15 * 60 * 1000), ownerPhone: from });
     await qrSession.save();
 
     await Log.create({ action: 'Owner requested retrieval QR', car: car._id });
-        io.emit('dashboardUpdate', await getDashboardData());
+    io.emit('dashboardUpdate', await getDashboardData());
 
     await sendImage(from, qrUrl, 'Scan this QR code to retrieve your car.');
     await sendMessage(from, `Your retrieval QR code is ready. Please scan it to retrieve your car. QR Link: ${qrUrl}`);
+    
+    // Notify the assigned driver for retrieval
+    if (freeDriver.phone) {
+        const slot = await Slot.findById(car.slot);
+        await sendMessage(freeDriver.phone, `Please retrieve car with license plate ${car.numberPlate} from slot ${slot ? slot.slotNumber : 'N/A'}.`);
+    }
 
   } else if (text === 'parked') {
-    const driverPhone = from;
+    const driverPhone = `+${from.replace('+', '')}`; // Normalize driver phone
     let driver = myCache.get(`driver_${driverPhone}`);
     if (!driver) {
       driver = await Driver.findOne({ phone: driverPhone });
@@ -207,7 +235,7 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     await sendMessage(car.ownerPhone, `Your car ${car.numberPlate} has been parked by ${driver.name}.`);
 
   } else if (text === 'retrieved') {
-    const driverPhone = from;
+    const driverPhone = `+${from.replace('+', '')}`; // Normalize driver phone
     let driver = myCache.get(`driver_${driverPhone}`);
     if (!driver) {
       driver = await Driver.findOne({ phone: driverPhone });
@@ -254,8 +282,8 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     }
     let qrToken = parts[1].trim();
     const scannedCarId = parts[2].trim();
-    const scannedOwnerPhone = parts[3].trim();
-    const driverPhone = from;
+    const scannedOwnerPhone = `+${parts[3].trim().replace('+', '')}`; // Normalize owner phone
+    const driverPhone = `+${from.replace('+', '')}`; // Normalize driver phone
 
     let driver = myCache.get(`driver_${driverPhone}`);
     if (!driver) {
@@ -350,7 +378,7 @@ const handleIncomingMessage = async (message, getDashboardData) => {
   } else if (message.type === 'image') {
     console.log('Received image message:', JSON.stringify(message, null, 2));
     // Handle car photo upload by driver
-    const driverPhone = from;
+    const driverPhone = `+${from.replace('+', '')}`; // Normalize driver phone
     let imageUrl;
     if (message.image && message.image.id) {
       try {
@@ -402,8 +430,6 @@ const handleIncomingMessage = async (message, getDashboardData) => {
           throw new Error('Invalid image URL provided');
         }
 
-        // ... existing code ...
-
         const response = await axios.get(imageUrl, {
           responseType: 'arraybuffer',
           headers: {
@@ -440,7 +466,7 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     }
   } else if (session.state === 'AWAITING_DRIVER_ID') {
     const driverId = text;
-    const driver = await Driver.findOne({ driverId: driverId, phone: from });
+    const driver = await Driver.findOne({ driverId: driverId, phone: `+${from.replace('+', '')}` }); // Normalize phone
     if (driver) {
       session.state = 'IDLE';
       await session.save();
@@ -479,7 +505,7 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     session.state = 'AWAITING_DRIVER_STATUS_SELECTION';
     await session.save();
   } else if (session.state === 'AWAITING_DRIVER_STATUS_SELECTION') {
-    const driverPhone = from;
+    const driverPhone = `+${from.replace('+', '')}`; // Normalize driver phone
     let driver = await Driver.findOne({ phone: driverPhone });
 
     if (!driver) {
