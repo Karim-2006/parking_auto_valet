@@ -6,7 +6,7 @@ const Driver = require('../models/Driver');
 const Slot = require('../models/Slot');
 const Log = require('../models/Log');
 const UserSession = require('../models/UserSession');
-const io = require('../app').io; // Assuming app.js exports io
+const { io, getDashboardData } = require('../app'); // Assuming app.js exports io and getDashboardData
 const NodeCache = require('node-cache');
 const myCache = new NodeCache({ stdTTL: 300, checkperiod: 60 }); // Cache for 5 minutes
 
@@ -29,10 +29,11 @@ const sendMessage = async (to, message) => {
       }
     });
     console.log(`Message sent to ${to}`);
-   } catch (error) {
-     console.error('Error sending WhatsApp message:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
-     console.error('WhatsApp API Error Details:', error.response ? error.response.data : 'No response data');
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+    console.error('WhatsApp API Error Details:', error.response ? error.response.data : 'No response data');
   }
+};
 
 
 const sendImage = async (to, imageUrl, caption = '') => {
@@ -52,9 +53,10 @@ const sendImage = async (to, imageUrl, caption = '') => {
   } catch (error) {
      console.error('Error sending WhatsApp image:', error.response ? error.response.data : error.message);
    }
+};
 
 
-const handleIncomingMessage = async (message) => {
+const handleIncomingMessage = async (message, getDashboardData) => {
   const from = message.from;
   const text = message.text && message.text.body ? message.text.body.toLowerCase() : '';
 
@@ -69,8 +71,10 @@ const handleIncomingMessage = async (message) => {
   }
 
   if (text === 'hi' || text === 'hello' || text === 'hey') {
+    console.log(`Attempting to send welcome messages to ${from}`);
     await sendMessage(from, 'Hi! Welcome to Automatic Valet Parking.');
     await sendMessage(from, 'Check-in');
+    console.log(`Welcome messages sent to ${from}`);
     session.state = 'AWAITING_CHECKIN_CONFIRMATION';
     await session.save();
   } else if (session.state === 'AWAITING_CHECKIN_CONFIRMATION' && text === 'check-in') {
@@ -112,19 +116,30 @@ const handleIncomingMessage = async (message) => {
 
     // Assign a free driver to the car during check-in
     const freeDriver = await Driver.findOne({ status: 'free' });
+    const freeSlot = await Slot.findOne({ isOccupied: false });
 
     if (!freeDriver) {
       await sendMessage(from, 'No free drivers available at the moment. Please try again later.');
-      // Optionally, you might want to delete the newly created car if no driver can be assigned
+      await Car.findByIdAndDelete(newCar._id);
+      return;
+    }
+
+    if (!freeSlot) {
+      await sendMessage(from, 'No free parking slots available at the moment. Please try again later.');
       await Car.findByIdAndDelete(newCar._id);
       return;
     }
 
     newCar.driver = freeDriver._id;
+    newCar.slot = freeSlot._id;
     await newCar.save();
 
     freeDriver.status = 'busy';
     await freeDriver.save();
+
+    freeSlot.isOccupied = true;
+    freeSlot.car = newCar._id;
+    await freeSlot.save();
 
     const { token, qrUrl } = await generateQrCode(newCar, { _id: newCar.ownerPhone, name: newCar.ownerName }, 'checkin');
 
@@ -132,22 +147,112 @@ const handleIncomingMessage = async (message) => {
     await qrSession.save();
 
     await Log.create({ action: 'Owner initiated check-in', car: newCar._id });
-    io.emit('dashboardUpdate', await getDashboardData());
+        io.emit('dashboardUpdate', await getDashboardData());
 
     await sendImage(from, qrUrl, 'Scan this QR code at the parking gate for check-in.');
     await sendMessage(from, `Your check-in QR code is ready. Please scan it at the parking gate. QR Link: ${qrUrl}`);
+    await sendMessage(from, `Assigned to driver ${freeDriver.name} and slot ${freeSlot.slotNumber}.`);
 
 
-  } else if (text.startsWith('qr_scan:') && session.state !== 'AWAITING_DRIVER_ID') {
+  } else if (text === 'retrieval') {
+    const car = await Car.findOne({ ownerPhone: from, status: 'parked' });
+    if (!car) {
+      await sendMessage(from, 'You do not have a car parked with us or your car is not yet parked.');
+      return;
+    }
+
+    const { token, qrUrl } = await generateQrCode(car, { _id: car.ownerPhone, name: car.ownerName }, 'retrieval');
+    const qrSession = new QRSession({ token, car: car._id, type: 'retrieval', qrURL: qrUrl, expiresAt: new Date(Date.now() + 15 * 60 * 1000), ownerPhone: from });
+    await qrSession.save();
+
+    await Log.create({ action: 'Owner requested retrieval QR', car: car._id });
+        io.emit('dashboardUpdate', await getDashboardData());
+
+    await sendImage(from, qrUrl, 'Scan this QR code to retrieve your car.');
+    await sendMessage(from, `Your retrieval QR code is ready. Please scan it to retrieve your car. QR Link: ${qrUrl}`);
+
+  } else if (text === 'parked') {
+    const driverPhone = from;
+    let driver = myCache.get(`driver_${driverPhone}`);
+    if (!driver) {
+      driver = await Driver.findOne({ phone: driverPhone });
+      if (driver) {
+        myCache.set(`driver_${driverPhone}`, driver);
+      }
+    }
+    if (!driver) {
+      await sendMessage(from, 'You are not a registered driver.');
+      return;
+    }
+
+    const car = await Car.findOne({ driver: driver._id, status: 'pending' });
+    if (!car) {
+      await sendMessage(from, 'No car assigned to you for parking confirmation.');
+      return;
+    }
+
+    car.status = 'parked';
+    car.checkInTime = new Date();
+    await car.save();
+
+    driver.status = 'free';
+    await driver.save();
+
+    await Log.create({ action: 'Car parked by driver', car: car._id, driver: driver._id });
+    io.emit('dashboardUpdate', await getDashboardData());
+
+    await sendMessage(from, `Car ${car.numberPlate} successfully parked in slot ${car.slot.slotNumber}. You are now free.`);
+    await sendMessage(car.ownerPhone, `Your car ${car.numberPlate} has been parked by ${driver.name}.`);
+
+  } else if (text === 'retrieved') {
+    const driverPhone = from;
+    let driver = myCache.get(`driver_${driverPhone}`);
+    if (!driver) {
+      driver = await Driver.findOne({ phone: driverPhone });
+      if (driver) {
+        myCache.set(`driver_${driverPhone}`, driver);
+      }
+    }
+    if (!driver) {
+      await sendMessage(from, 'You are not a registered driver.');
+      return;
+    }
+
+    const car = await Car.findOne({ driver: driver._id, status: 'awaiting_retrieval' });
+    if (!car) {
+      await sendMessage(from, 'No car assigned to you for retrieval confirmation.');
+      return;
+    }
+
+    car.status = 'retrieved';
+    car.retrievalTime = new Date();
+    await car.save();
+
+    const slot = await Slot.findById(car.slot);
+    if (slot) {
+      slot.isOccupied = false;
+      slot.car = undefined;
+      await slot.save();
+    }
+
+    driver.status = 'free';
+    await driver.save();
+
+    await Log.create({ action: 'Car retrieved by driver', car: car._id, driver: driver._id });
+    io.emit('dashboardUpdate', await getDashboardData());
+
+    await sendMessage(from, `Car ${car.numberPlate} successfully retrieved. You are now free.`);
+    await sendMessage(car.ownerPhone, `Your car ${car.numberPlate} has been retrieved by ${driver.name}.`);
+
+  } else if (text.startsWith('qr_scan:')) {
     const parts = text.split(':');
-    if (parts.length < 4) {
-      await sendMessage(from, 'Invalid QR code format. Please scan a valid retrieval QR code.');
+    if (parts.length !== 4) {
+      await sendMessage(from, 'Invalid QR code format. Please scan a valid QR code.');
       return;
     }
     let qrToken = parts[1].trim();
     const scannedCarId = parts[2].trim();
-    const scannedOwnerId = parts[3].trim();
-    // Step 2: Driver scans QR
+    const scannedOwnerPhone = parts[3].trim();
     const driverPhone = from;
 
     let driver = myCache.get(`driver_${driverPhone}`);
@@ -162,11 +267,10 @@ const handleIncomingMessage = async (message) => {
       return;
     }
 
-    const qrSessionFindStartTime = process.hrtime.bigint();
-    const qrSession = await QRSession.findOne({ token: qrToken, type: 'retrieval', used: false, expiresAt: { $gt: new Date() } });
+    const qrSession = await QRSession.findOne({ token: qrToken, used: false, expiresAt: { $gt: new Date() } });
 
     if (!qrSession) {
-      await sendMessage(from, 'Invalid or expired QR code for retrieval.');
+      await sendMessage(from, 'Invalid or expired QR code.');
       return;
     }
 
@@ -178,151 +282,13 @@ const handleIncomingMessage = async (message) => {
       }
     }
 
-    if (!car || car._id.toString() !== scannedCarId || car.ownerPhone !== scannedOwnerId) {
+    if (!car || car._id.toString() !== scannedCarId || car.ownerPhone !== scannedOwnerPhone) {
       await sendMessage(from, 'QR code does not match car or owner details.');
       return;
     }
 
-    if (car.status !== 'awaiting_retrieval' || !car.driver || car.driver.toString() !== driver._id.toString()) {
-      await sendMessage(from, 'This car is not awaiting retrieval by you, or is assigned to another driver.');
-      return;
-    }
-    const qrSessionFindEndTime = process.hrtime.bigint();
-    console.log(`QRSession.findOne took ${Number(qrSessionFindEndTime - qrSessionFindStartTime) / 1_000_000} ms`);
-
-
-      car = myCache.get(`car_${qrSession.car}`);
-      if (!car) {
-        car = await Car.findById(qrSession.car);
-        if (car) {
-          myCache.set(`car_${qrSession.car}`, car);
-        }
-      }
-
-        const freeSlotFindStartTime = process.hrtime.bigint();
-        const freeSlot = await Slot.findOne({ isOccupied: false });
-        const freeSlotFindEndTime = process.hrtime.bigint();
-        console.log(`Slot.findOne took ${Number(freeSlotFindEndTime - freeSlotFindStartTime) / 1_000_000} ms`);
-
-        if (freeSlot) {
-          car.status = 'checked_in';
-          car.slot = freeSlot._id;
-          car.driver = driver._id;
-          car.checkInTime = new Date();
-          await car.save();
-
-          freeSlot.isOccupied = true;
-          freeSlot.car = car._id;
-          await freeSlot.save();
-
-          driver.status = 'busy';
-          await driver.save();
-
-          qrSession.used = true;
-          await qrSession.save();
-
-          car.status = 'retrieved';
-          car.retrievalCode = undefined;
-          car.slot.isOccupied = false;
-          car.slot.car = undefined;
-          await car.slot.save();
-          await car.save();
-
-          driver.status = 'available';
-          await driver.save();
-
-          qrSession.used = true;
-          await qrSession.save();
-
-          await sendMessage(car.ownerPhone, `Your car ${car.numberPlate} has been successfully retrieved.`);
-          await sendMessage(from, `Car retrieval process completed for ${car.numberPlate}.`);
-          await Log.create({ action: 'Car retrieved', car: car._id, driver: driver._id });
-          io.emit('dashboardUpdate', await getDashboardData());
-  
-           await sendMessage(from, 'Car is not in a retrievable state or slot information is missing.');
-        }
-  } else if (text === 'retrieval' && session.state === 'IDLE') {
-    await sendMessage(from, 'Please provide the phone number registered with your car:');
-    session.state = 'AWAITING_RETRIEVAL_PHONE_NUMBER';
-    await session.save();
-  } else if (session.state === 'AWAITING_RETRIEVAL_PHONE_NUMBER') {
-    const registeredPhoneNumber = text;
-    const car = await Car.findOne({ ownerPhone: registeredPhoneNumber, status: { $in: ['checked_in', 'parked'] } });
-
-    if (car) {
-      const freeDriver = await Driver.findOne({ status: 'free' });
-
-      if (freeDriver) {
-        assignedDriver.status = 'busy';
-        await assignedDriver.save();
-
-        car.status = 'retrieval_requested';
-        car.assignedDriver = freeDriver._id;
-        await car.save();
-
-        await Log.create({ action: 'Car retrieval requested', car: car._id, driver: freeDriver._id });
-        io.emit('dashboardUpdate', await getDashboardData());
-
-        await sendMessage(from, `Your retrieval request for car ${car.numberPlate} has been sent. Driver ${freeDriver.name} (${freeDriver.phone}) has been assigned and will contact you shortly.`);
-        await sendMessage(freeDriver.phone, 'A car is being assigned to you.');
-      await sendMessage(freeDriver.phone, `New retrieval request for car ${car.numberPlate} (Owner: ${car.ownerName}, Phone: ${car.ownerPhone}). Please proceed to Slot ${car.slot.slotNumber} for retrieval.`);
-
-
-        await sendMessage(from, 'No drivers are currently available for retrieval. Please try again later.');
-      }
-
-    } else {
-      await sendMessage(from, 'No checked-in or parked car found with that phone number.');
-    }
-    session.state = 'IDLE';
-    await session.save();
-  } else if (text.startsWith('qr_scan:') && session.state !== 'AWAITING_DRIVER_ID') {
-    // Step 2: Driver scans QR
-    const qrToken = text.split(':')[1].trim();
-    const driverPhone = from;
-
-    let driver = myCache.get(`driver_${driverPhone}`);
-    if (!driver) {
-      driver = await Driver.findOne({ phone: driverPhone });
-      if (driver) {
-        myCache.set(`driver_${driverPhone}`, driver);
-      }
-    }
-    if (!driver || !driver.driverId) {
-      await sendMessage(from, 'You are not authorized to scan QR codes. Please ensure you are a registered driver with a valid Driver ID.');
-      return;
-    }
-
-    const qrSessionFindStartTime = process.hrtime.bigint();
-    const qrSession = await QRSession.findOne({ token: qrToken, used: false, expiresAt: { $gt: new Date() } });
-    const qrSessionFindEndTime = process.hrtime.bigint();
-    console.log(`QRSession.findOne took ${Number(qrSessionFindEndTime - qrSessionFindStartTime) / 1_000_000} ms`);
-
-    if (!qrSession) {
-      await sendMessage(from, 'Invalid or expired QR code.');
-      return;
-    }
-
-    const [carId, ownerId] = qrSession.qrText.split('_');
-
-    let car = myCache.get(`car_${carId}`);
-    if (!car) {
-      car = await Car.findById(carId);
-      if (car) {
-        myCache.set(`car_${carId}`, car);
-      }
-    }
-
-    if (!car || car.ownerPhone !== ownerId) {
-      await sendMessage(from, 'QR code does not match any car or owner details.');
-      return;
-    }
-
     if (qrSession.type === 'checkin') {
-      const freeSlotFindStartTime = process.hrtime.bigint();
       const freeSlot = await Slot.findOne({ isOccupied: false });
-      const freeSlotFindEndTime = process.hrtime.bigint();
-      console.log(`Slot.findOne took ${Number(freeSlotFindEndTime - freeSlotFindStartTime) / 1_000_000} ms`);
 
       if (freeSlot) {
         car.status = 'checked_in';
@@ -346,6 +312,7 @@ const handleIncomingMessage = async (message) => {
         await Log.create({ action: 'Car checked in', car: car._id, driver: driver._id });
         io.emit('dashboardUpdate', await getDashboardData());
 
+      } else {
         await sendMessage(from, 'No free slots available.');
       }
     } else if (qrSession.type === 'retrieval') {
@@ -373,95 +340,11 @@ const handleIncomingMessage = async (message) => {
         await sendMessage(from, `Car retrieval process completed for ${car.numberPlate}.`);
         await Log.create({ action: 'Car retrieved', car: car._id, driver: driver._id });
         io.emit('dashboardUpdate', await getDashboardData());
-
+      } else {
         await sendMessage(from, 'You are not the assigned driver for this car retrieval.');
-      } else {
-      await sendMessage(from, 'Invalid QR session type.');
-    }
-    } else {
-      await sendMessage(from, 'Invalid or expired QR code.');
-    }
-  } else if (text === 'retrieval' && session.state === 'IDLE') {
-    await sendMessage(from, 'Please provide the phone number registered with your car:');
-    session.state = 'AWAITING_RETRIEVAL_PHONE_NUMBER';
-    await session.save();
-  } else if (session.state === 'AWAITING_RETRIEVAL_PHONE_NUMBER') {
-    const registeredPhoneNumber = text;
-    const car = await Car.findOne({ ownerPhone: registeredPhoneNumber, status: { $in: ['checked_in', 'parked'] } });
-
-    if (car) {
-      const availableDriver = await Driver.findOne({ status: 'free' });
-
-      if (availableDriver) {
-        const retrievalCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
-        car.retrievalCode = retrievalCode;
-        car.driver = availableDriver._id;
-        car.status = 'awaiting_retrieval';
-        await car.save();
-
-        availableDriver.status = 'busy';
-        await availableDriver.save();
-
-        await sendMessage(from, `Your retrieval code is: ${retrievalCode}. A driver (${availableDriver.name}) has been assigned to retrieve your car.`);
-        await sendMessage(availableDriver.phone, 'A car is being assigned to you.');
-      await sendMessage(availableDriver.phone, `New retrieval request for car ${car.numberPlate}. Retrieval code: ${retrievalCode}. Please proceed to slot ${car.slot.slotNumber}.`);
-        await Log.create({ action: 'Car retrieval initiated', car: car._id, driver: availableDriver._id });
-        io.emit('dashboardUpdate', await getDashboardData());
-
-        session.state = 'IDLE';
-        await session.save();
-      } else {
-        await sendMessage(from, 'No available drivers at the moment. Our system will notify you as soon as a driver becomes available. Thank you for your patience.');
-        session.state = 'IDLE';
-        await session.save();
       }
-    } else {
-      await sendMessage(from, 'No car found with that registered phone number or car is not in a retrievable status.');
-      session.state = 'IDLE';
-      await session.save();
-    }
-  } else if (text.startsWith('retrieve_car:') && session.state === 'IDLE') {
-    const parts = text.split(':');
-    if (parts.length === 3) {
-      const carId = parts[1].trim();
-      const providedCode = parts[2].trim();
-      const driverPhone = from;
-
-      const driver = await Driver.findOne({ phone: driverPhone });
-      if (!driver) {
-        await sendMessage(from, 'You are not authorized to retrieve cars.');
-        return;
-      }
-
-      const car = await Car.findById(carId).populate('slot');
-
-      if (car && car.driver && car.driver.toString() === driver._id.toString() && car.retrievalCode === providedCode) {
-        car.status = 'retrieved';
-        car.retrievalCode = undefined;
-        car.slot.isOccupied = false;
-        car.slot.car = undefined;
-        await car.slot.save();
-        await car.save();
-
-        driver.status = 'available';
-        await driver.save();
-
-        await sendMessage(car.ownerPhone, `Your car ${car.numberPlate} has been successfully retrieved.`);
-        await sendMessage(from, `Car ${car.numberPlate} successfully retrieved from slot ${car.slot.slotNumber}.`);
-        await Log.create({ action: 'Car retrieved', car: car._id, driver: driver._id });
-        io.emit('dashboardUpdate', await getDashboardData());
-      } else {
-        await sendMessage(from, 'Retrieval failed: Invalid car ID, driver mismatch, or incorrect retrieval code.');
-        await Log.create({ action: 'Car retrieval failed', car: car ? car._id : undefined, driver: driver._id, error: 'Invalid car ID, driver mismatch, or incorrect retrieval code' });
-      }
-    } else {
-      await sendMessage(from, 'Invalid command format. Use: retrieve_car:<car_id>:<retrieval_code>');
     }
 
-
-  } else if (text === 'parked') {
-    // Step 3: Driver confirms parking and uploads photo
-    await sendMessage(from, 'Please upload the car photo.');
   } else if (message.type === 'image') {
     console.log('Received image message:', JSON.stringify(message, null, 2));
     // Handle car photo upload by driver
@@ -516,6 +399,9 @@ const handleIncomingMessage = async (message) => {
         if (!imageUrl || typeof imageUrl !== 'string') {
           throw new Error('Invalid image URL provided');
         }
+
+        // ... existing code ...
+
         const response = await axios.get(imageUrl, {
           responseType: 'arraybuffer',
           headers: {
@@ -588,61 +474,10 @@ const handleIncomingMessage = async (message) => {
   } else {
     await sendMessage(from, 'I did not understand your request. Please type "hi" to start over or "status" to update your driver status.');
   }
-}
-};
-
-};
-
-const getDashboardData = async () => {
-  const totalSlots = 15;
-  const occupiedSlots = await Slot.countDocuments({ isOccupied: true });
-  const availableSlots = totalSlots - occupiedSlots;
-
-  const busyDrivers = await Driver.countDocuments({ status: 'busy' });
-  const pendingCheckins = await Car.countDocuments({ status: 'pending' });
-
-  const cars = await Car.find().populate('slot').populate('driver').sort({ checkInTime: -1 });
-  const drivers = await Driver.find();
-  const logs = await Log.find().populate('car').populate('driver').sort({ timestamp: -1 }).limit(20);
-
-  return {
-    stats: { totalSlots, availableSlots, busyDrivers, pendingCheckins },
-    cars,
-    drivers,
-    logs
-  };
-};
-
-const parseCarDetails = (text) => {
-  const plateMatch = text.match(/plate:\s*([^,]+)/i);
-  const modelMatch = text.match(/model:\s*([^,]+)/i);
-  const nameMatch = text.match(/name:\s*([^,]+)/i);
-  const phoneMatch = text.match(/phone:\s*([^,]+)/i);
-
-  if (plateMatch && modelMatch && nameMatch && phoneMatch) {
-    return {
-      numberPlate: plateMatch[1].trim(),
-      model: modelMatch[1].trim(),
-      ownerName: nameMatch[1].trim(),
-      ownerPhone: phoneMatch[1].trim()
-    };
-  }
-  return null;}
-
-const sendImage = async (to, imageUrl, caption) => {
-  console.log(`Sending image to ${to} with URL ${imageUrl} and caption ${caption}`);
-  // Placeholder for actual image sending logic
-};
-
-const handleIncomingMessage = async (message) => {
-  console.log(`Handling incoming message: ${message.text && message.text.body ? message.text.body : 'Non-text message'}`);
-  // Placeholder for actual message handling logic
 };
 
 module.exports = {
- sendMessage,
+  sendMessage,
   sendImage,
   handleIncomingMessage,
-  getDashboardData,
-  parseCarDetails
 };

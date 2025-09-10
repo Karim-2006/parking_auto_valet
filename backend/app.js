@@ -27,8 +27,12 @@ const io = socketio(server, {
   }
 });
 
+// Export io for use in other modules
+
+
 // Middleware
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('frontend'));
 
@@ -37,7 +41,17 @@ require('./db');
 
 // Routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.get('/index.html', (req, res) => {
@@ -76,7 +90,7 @@ app.post('/webhook', (req, res) => {
           if (change.value && change.value.messages && change.value.messages.length > 0) {
             const message = change.value.messages[0];
             if (message) {
-              require('./services/whatsappService').handleIncomingMessage(message);
+              require('./services/whatsappService').handleIncomingMessage(message, getDashboardData);
             }
           }
         }
@@ -132,7 +146,15 @@ app.get('/drivers', async (req, res) => {
 });
 
 // Socket.IO connection
-require('./sockets')(io);
+io.on('connection', async (socket) => {
+  console.log('a user connected');
+  // Send initial data to the newly connected client
+  socket.emit('dashboardUpdate', await getDashboardData());
+
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
+});
 
 // Start server
 const PORT = process.env.PORT || 4513;
@@ -140,4 +162,34 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-module.exports.io = io; // Export io for use in other modules
+async function getDashboardData() {
+  const totalSlots = await Slot.countDocuments({});
+  const availableSlots = await Slot.countDocuments({ isOccupied: false });
+  const busyDrivers = await Driver.countDocuments({ status: 'busy' });
+  const pendingCheckins = await Car.countDocuments({ status: 'pending' });
+  const awaitingRetrieval = await Car.countDocuments({ status: 'awaiting_retrieval' });
+
+  const cars = await Car.find({ status: { $in: ['pending', 'parked', 'awaiting_retrieval', 'checked_in', 'retrieved'] } })
+    .populate('slot')
+    .populate('driver');
+  const drivers = await Driver.find({});
+  const logs = await Log.find({}).sort({ timestamp: -1 }).limit(20)
+    .populate('car')
+    .populate('driver');
+
+  return {
+    stats: {
+      totalSlots,
+      availableSlots,
+      busyDrivers,
+      pendingCheckins,
+      awaitingRetrieval,
+    },
+    cars,
+    drivers,
+    logs,
+  };
+}
+
+module.exports.io = io;
+module.exports.getDashboardData = getDashboardData;

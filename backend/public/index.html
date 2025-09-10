@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Valet Parking Admin Dashboard</h1>
+        <div class="dashboard-sections">
+            <div class="section">
+                <h2>Parking Slots</h2>
+                <div id="slots-overview" class="overview-grid"></div>
+            </div>
+            <div class="section">
+                <h2>Drivers</h2>
+                <div id="drivers-overview" class="overview-grid"></div>
+            </div>
+            <div class="section full-width">
+                <h2>Parked Cars</h2>
+                <table id="parked-cars-table">
+                    <thead>
+                        <tr>
+                            <th>Owner</th>
+                            <th>Car No</th>
+                            <th>Car Model</th>
+                            <th>Slot</th>
+                            <th>Assigned Driver</th>
+                            <th>Check-in Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Car data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="section full-width">
+                <h2>Logs</h2>
+                <div id="logs-container" class="logs-list"></div>
+            </div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
