@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSlots(slots) {
         slotsOverview.innerHTML = '';
+        if (!Array.isArray(slots)) {
+            console.error('Expected an array for slots, but received:', slots);
+            return;
+        }
         slots.forEach(slot => {
             const slotItem = document.createElement('div');
             slotItem.classList.add('slot-item');
@@ -27,6 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateDrivers(drivers) {
         driversOverview.innerHTML = '';
+        if (!Array.isArray(drivers)) {
+            console.error('Expected an array for drivers, but received:', drivers);
+            return;
+        }
         drivers.forEach(driver => {
             const driverItem = document.createElement('div');
             driverItem.classList.add('driver-item');
@@ -38,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateParkedCars(parkedCars) {
         parkedCarsTableBody.innerHTML = '';
+        if (!Array.isArray(parkedCars)) {
+            console.error('Expected an array for parkedCars, but received:', parkedCars);
+            return;
+        }
         parkedCars.forEach(car => {
             const row = parkedCarsTableBody.insertRow();
             row.insertCell().textContent = car.ownerName;
