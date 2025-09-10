@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Management</title>
+    <link rel="stylesheet" href="driver-management.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Valet Driver Management</h1>
+
+        <!-- Add Driver Form -->
+        <div class="card">
+            <h2>Add New Driver</h2>
+            <form id="add-driver-form">
+                <div class="form-group">
+                    <label for="driver-name">Driver Name</label>
+                    <input type="text" id="driver-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="contact-details">Contact Details</label>
+                    <input type="text" id="contact-details" required>
+                </div>
+                <div class="form-group">
+                    <label for="license-number">License Number</label>
+                    <input type="text" id="license-number" required>
+                </div>
+                <div class="form-group">
+                    <label for="availability-status">Availability Status</label>
+                    <select id="availability-status">
+                        <option value="free">Free</option>
+                        <option value="busy">Busy</option>
+                    </select>
+                </div>
+                <button type="submit">Add Driver</button>
+            </form>
+        </div>
+
+        <!-- Driver List -->
+        <div class="card">
+            <h2>Driver List</h2>
+            <table id="driver-list">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>License No.</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Driver rows will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Scanning Section -->
+        <div class="card">
+            <h2>Scan Vehicle</h2>
+            <div id="scanner-container">
+                <div id="qr-reader" style="width: 500px"></div>
+            </div>
+            <div id="scan-result"></div>
+        </div>
+
+        <!-- Driver Assignment -->
+        <div class="card">
+            <h2>Manual Driver Assignment</h2>
+            <form id="manual-assignment-form">
+                <div class="form-group">
+                    <label for="car-select">Select Car</label>
+                    <select id="car-select" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="driver-select">Assign to Driver</label>
+                    <select id="driver-select" required></select>
+                </div>
+                <button type="submit">Assign Driver</button>
+            </form>
+        </div>
+
+        <!-- Real-time Driver Tracking -->
+        <div class="card">
+            <h2>Real-time Driver Tracking</h2>
+            <div id="map" style="height: 400px; background-color: #e9e9e9;">
+                <!-- Map will be initialized here -->
+                <p style="text-align: center; padding-top: 180px;">Map Placeholder</p>
+            </div>
+        </div>
+
+        <!-- Assignment History -->
+        <div class="card">
+            <h2>Assignment History</h2>
+            <table id="assignment-history">
+                <thead>
+                    <tr>
+                        <th>Car</th>
+                        <th>Driver</th>
+                        <th>Timestamp</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- History rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Performance Analytics -->
+        <div class="card">
+            <h2>Performance Analytics</h2>
+            <div id="analytics-dashboard">
+                <!-- Charts will be rendered here -->
+                <canvas id="performance-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="driver-management.js"></script>
+</body>
+</html>

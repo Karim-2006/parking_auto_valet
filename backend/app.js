@@ -54,6 +54,77 @@ app.get('/api/dashboard', async (req, res) => {
   }
 });
 
+// API for Driver Management Page
+app.get('/api/drivers', async (req, res) => {
+  try {
+    const drivers = await Driver.find({});
+    res.json(drivers);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.post('/api/drivers', async (req, res) => {
+  try {
+    const driver = new Driver(req.body);
+    await driver.save();
+    res.status(201).json(driver);
+  } catch (error) {
+    res.status(400).send(error);
+  }
+});
+
+app.get('/api/cars', async (req, res) => {
+  try {
+    const cars = await Car.find({}).populate('driver').populate('slot');
+    res.json(cars);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.get('/api/logs', async (req, res) => {
+  try {
+    const logs = await Log.find({}).populate('car').populate('driver');
+    res.json(logs);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.post('/api/assign', async (req, res) => {
+    try {
+        const { carId, driverId } = req.body;
+        const car = await Car.findById(carId);
+        const driver = await Driver.findById(driverId);
+
+        if (!car || !driver) {
+            return res.status(404).json({ message: 'Car or Driver not found' });
+        }
+
+        car.driver = driver._id;
+        car.status = 'assigned'; // Or whatever status you use
+        await car.save();
+
+        driver.status = 'busy';
+        await driver.save();
+        
+        await Log.create({
+            action: 'Manually Assigned',
+            car: car._id,
+            driver: driver._id
+        });
+
+        io.emit('dashboardUpdate', await getDashboardData());
+        res.status(200).json({ message: 'Driver assigned successfully' });
+
+    } catch (error) {
+        console.error('Error assigning driver:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
 app.get('/index.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });

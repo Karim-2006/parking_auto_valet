@@ -448,6 +448,32 @@ const handleIncomingMessage = async (message, getDashboardData) => {
     } else {
       await sendMessage(from, 'Invalid Driver ID or phone number. Please try again.');
     }
+  } else if (text === 'update_phone') {
+    await sendMessage(from, 'Please provide your new phone number:');
+    session.state = 'AWAITING_PHONE_NUMBER_UPDATE';
+    await session.save();
+  } else if (session.state === 'AWAITING_PHONE_NUMBER_UPDATE') {
+    const newPhoneNumber = text;
+    const driver = await Driver.findOne({ phone: from });
+
+    if (!driver) {
+      await sendMessage(from, 'You are not a registered driver.');
+      session.state = 'IDLE';
+      await session.save();
+      return;
+    }
+
+    const existingDriverWithNewPhone = await Driver.findOne({ phone: newPhoneNumber });
+    if (existingDriverWithNewPhone && existingDriverWithNewPhone._id.toString() !== driver._id.toString()) {
+      await sendMessage(from, 'This phone number is already registered to another driver. Please provide a different number.');
+      return;
+    }
+
+    driver.phone = newPhoneNumber;
+    await driver.save();
+    await sendMessage(from, `Your phone number has been updated to ${newPhoneNumber}.`);
+    session.state = 'IDLE';
+    await session.save();
   } else if (text === 'status') {
     await sendMessage(from, 'Please select your status: busy or free');
     session.state = 'AWAITING_DRIVER_STATUS_SELECTION';

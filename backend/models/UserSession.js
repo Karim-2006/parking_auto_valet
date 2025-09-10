@@ -10,6 +10,12 @@ const userSessionSchema = new mongoose.Schema({
     type: String,
     required: true,
     default: 'IDLE',
+    enum: [
+      'AWAITING_CONTACT_NUMBER',
+      'AWAITING_DRIVER_ID',
+      'AWAITING_DRIVER_STATUS_SELECTION',
+      'AWAITING_PHONE_NUMBER_UPDATE'
+    ],
   },
   carDetails: {
     licensePlate: String,
