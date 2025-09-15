@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Valet Parking Admin Dashboard</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
     <script>
@@ -13,16 +14,38 @@
         }
     </script>
     <header class="header">
-        <h1 class="app-title">Valet Parking Dashboard</h1>
+        <div class="header-content">
+            <img src="https://via.placeholder.com/50" alt="Logo" class="logo">
+            <h1 class="app-title">Valet Parking Dashboard</h1>
+        </div>
         <nav class="main-nav">
             <a href="#stats" class="nav-link">Overview</a>
             <a href="#cars" class="nav-link">Cars</a>
             <a href="#drivers" class="nav-link">Drivers</a>
             <a href="#logs" class="nav-link">Activity Log</a>
+            <button class="logout-btn">Logout</button>
         </nav>
     </header>
 
     <main class="main-content">
+        <section class="hero-section">
+            <div class="hero-content">
+                <h2>Welcome to Your Valet Dashboard</h2>
+                <p>Manage your parking operations efficiently and effortlessly.</p>
+                <button class="cta-button">Get Started</button>
+            </div>
+        </section>
+
+        <section id="quick-actions" class="dashboard-section">
+            <h2>Quick Actions</h2>
+            <div class="quick-action-grid">
+                <button class="action-button">Check-in Car</button>
+                <button class="action-button">Retrieve Car</button>
+                <button class="action-button">Add Driver</button>
+                <button class="action-button">View Reports</button>
+            </div>
+        </section>
+
         <section id="stats" class="dashboard-section stats-overview">
             <h2>Current Status</h2>
             <div class="stats-grid">
@@ -102,7 +125,6 @@
         </section>
     </main>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>

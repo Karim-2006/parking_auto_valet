@@ -92,3 +92,19 @@ document.querySelectorAll('.main-nav a').forEach(anchor => {
         });
     });
 });
+
+// Add event listeners for quick action buttons
+document.querySelectorAll('.quick-action-grid .action-button').forEach(button => {
+    button.addEventListener('click', function() {
+        const action = this.textContent;
+        alert(`${action} functionality to be implemented.`);
+        // Here you would typically call a function to handle the action,
+        // e.g., open a modal for check-in, trigger an API call, etc.
+    });
+});
+
+// Add event listener for logout button
+document.querySelector('.logout-btn').addEventListener('click', function() {
+    sessionStorage.removeItem('loggedIn');
+    window.location.href = 'login.html';
+});

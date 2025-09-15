@@ -5,14 +5,15 @@ const db = require('./db');
 
 dotenv.config();
 
-async function addDriver() {
+async function addDriver(name, phone) {
   try {
     await db; // Ensure database connection is established
 
     const driverData = {
-      name: 'Barath',
-      phone: '+919025328996',
-      licenseNumber: 'BARATH-001', // Placeholder license
+      name: name,
+      phone: phone,
+      licenseNumber: `${name.toUpperCase()}-${phone.slice(-4)}`, // Generate license based on name and last 4 digits of phone
+      driverId: `${name.toLowerCase().replace(/\s/g, '')}-${phone.slice(-4)}`, // Generate unique driverId
       status: 'free'
     };
 
@@ -35,4 +36,12 @@ async function addDriver() {
   }
 }
 
-addDriver();
+const driverName = process.argv[2];
+const driverPhone = process.argv[3];
+
+if (!driverName || !driverPhone) {
+  console.log('Usage: node add_driver.js <driverName> <driverPhone>');
+  process.exit(1);
+}
+
+addDriver(driverName, driverPhone);
