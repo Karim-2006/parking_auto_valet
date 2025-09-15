@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Checkout</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        form {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="number"], input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #qr-code-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+        #qr-code-image {
+            margin-top: 20px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        #transaction-details {
+            margin-top: 15px;
+            font-size: 1.1em;
+            color: #666;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            form, #qr-code-container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Checkout</h1>
+    <form id="payment-form">
+        <label for="amount">Amount:</label>
+        <input type="number" id="amount" value="100" required><br><br>
+        <button type="submit">Pay Now</button>
+    </form>
+
+    <h2>QR Code Payment</h2>
+    <form id="qr-payment-form">
+        <label for="qr-amount">Amount:</label>
+        <input type="number" id="qr-amount" value="100" required><br><br>
+        <label for="order-id">Order ID:</label>
+        <input type="text" id="order-id" value="ORDER123" required><br><br>
+        <button type="submit">Generate QR Code</button>
+    </form>
+    <div id="qr-code-container">
+        <h3>Scan to Pay</h3>
+        <img id="qr-code-image" src="" alt="QR Code" style="display:none; width: 200px; height: 200px;">
+        <p id="transaction-details"></p>
+    </div>
+
+    <script>
+        let stripe;
+        fetch('/api/payments/config')
+            .then((res) => res.json())
+            .then((data) => {
+                stripe = Stripe(data.publishableKey);
+            });
+
+        const paymentForm = document.getElementById('payment-form');
+
+        paymentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const amount = document.getElementById('amount').value;
+
+            try {
+                const response = await fetch('/api/payments/create-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ amount: parseFloat(amount) }),
+                });
+
+                const session = await response.json();
+
+                if (session.error) {
+                    alert(session.error);
+                    return;
+                }
+
+                const result = await stripe.redirectToCheckout({
+                    sessionId: session.id,
+                });
+
+                if (result.error) {
+                    alert(result.error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating checkout session.');
+            }
+        });
+
+        const qrPaymentForm = document.getElementById('qr-payment-form');
+        qrPaymentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const amount = document.getElementById('qr-amount').value;
+            const orderId = document.getElementById('order-id').value;
+
+            try {
+                const response = await fetch('/api/payments/generate-qr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ amount: parseFloat(amount), orderId }),
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                const qrCodeImage = document.getElementById('qr-code-image');
+                qrCodeImage.src = data.qrCodeImage;
+                qrCodeImage.style.display = 'block';
+
+                const transactionDetails = document.getElementById('transaction-details');
+                transactionDetails.innerText = `Amount: ${amount}, Order ID: ${orderId}`;
+
+                // New: Handle Stripe Payment Intent confirmation
+                if (data.clientSecret) {
+                    const { paymentIntent, error } = await stripe.confirmCardPayment(data.clientSecret, {
+                        payment_method: {
+                            card: {
+                                // This is a placeholder. In a real application, you would collect card details from the user.
+                                // For QR code payments, the user would scan the QR code and complete the payment on their device.
+                                // Here, we are simulating the confirmation on the client-side after the QR code is generated.
+                                token: 'tok_visa' // Use a test token for demonstration
+                            }
+                        }
+                    });
+
+                    if (error) {
+                        console.error('Payment confirmation error:', error);
+                        transactionDetails.innerText = `Payment failed: ${error.message}`;
+                    } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+                        transactionDetails.innerText = `Payment Succeeded! Transaction ID: ${paymentIntent.id}`;
+                    } else {
+                        transactionDetails.innerText = `Payment status: ${paymentIntent.status}`;
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error generating QR code:', error);
+                alert('Error generating QR code.');
+            }
+        });
+    </script>
+</body>
+</html>

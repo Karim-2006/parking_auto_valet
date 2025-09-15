@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valet Parking Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <script>
+        if (sessionStorage.getItem('loggedIn') !== 'true') {
+            window.location.href = 'login.html';
+        }
+    </script>
+    <header class="header">
+        <h1 class="app-title">Valet Parking Dashboard</h1>
+        <nav class="main-nav">
+            <a href="#stats" class="nav-link">Overview</a>
+            <a href="#cars" class="nav-link">Cars</a>
+            <a href="#drivers" class="nav-link">Drivers</a>
+            <a href="#logs" class="nav-link">Activity Log</a>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        <section id="stats" class="dashboard-section stats-overview">
+            <h2>Current Status</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Available Slots</h3>
+                    <p id="available-slots" class="stat-value">0/15</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Busy Drivers</h3>
+                    <p id="busy-drivers" class="stat-value">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Pending Check-ins</h3>
+                    <p id="pending-checkins" class="stat-value">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Cars Awaiting Retrieval</h3>
+                    <p id="awaiting-retrieval" class="stat-value">0</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="cars" class="dashboard-section">
+            <h2>Current Cars</h2>
+            <table id="cars-table">
+                <thead>
+                    <tr>
+                        <th>Plate</th>
+                        <th>Model</th>
+                        <th>Owner</th>
+                        <th>Phone</th>
+                        <th>Slot</th>
+                        <th>Driver</th>
+                        <th>Status</th>
+                        <th>Photo</th>
+                        <th>Check-in Time</th>
+                        <th>Retrieval Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Car data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <section id="drivers" class="dashboard-section">
+            <h2>Drivers</h2>
+            <table id="drivers-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Driver data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <section id="logs" class="dashboard-section">
+            <h2>Activity Log</h2>
+            <table id="logs-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Action</th>
+                        <th>Car Plate</th>
+                        <th>Driver Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Log data will be inserted here -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
