@@ -1,0 +1,44 @@
+# This file defines the services for deploying Desi Mart to Render.
+# It includes a Node.js backend service and a static site frontend service.
+
+services:
+  # Backend Service
+  - type: web
+    name: desi-mart-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    # The directory where your backend code is located
+    rootDir: backend
+    # Environment variables for the backend
+    envVars:
+      - key: MONGODB_URI
+        sync: false # Set this to true if you want to sync with Render's environment variables
+      - key: JWT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: TWILIO_SID
+        sync: false
+      - key: TWILIO_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+      - key: PORT
+        value: 3001 # Render automatically sets the PORT, but it's good to define a default
+
+  # Frontend Service
+  - type: static
+    name: desi-mart-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    # The directory where your frontend code is located
+    rootDir: .
+    # The directory containing the built static files
+    publishPath: dist
+    # Environment variables for the frontend (if any, typically not needed for static sites)
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://desi-mart-backend.onrender.com # Replace with your actual backend URL on Render
